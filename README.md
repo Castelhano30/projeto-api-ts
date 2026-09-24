@@ -28,13 +28,14 @@ npm test
 Servidor padrão: `http://localhost:3000`
 Documentação Swagger: `http://localhost:3000/docs`
 
-Variáveis de ambiente opcionais (`.env` ou variáveis de sistema):
+Variáveis de ambiente (`.env` ou variáveis de sistema):
 
 | Variável          | Padrão                    | Descrição                          |
 |-------------------|----------------------------|-------------------------------------|
 | `PORT`            | `3000`                     | Porta HTTP                          |
 | `JWT_SECRET`      | `dev-secret-change-me`     | Segredo usado para assinar o JWT    |
 | `JWT_EXPIRES_IN`  | `1h`                       | Tempo de expiração do token         |
+| `MONGODB_URI`     | *(obrigatória, sem padrão)* | String de conexão do MongoDB (Atlas ou local). Sem ela, a aplicação não inicia. |
 
 ## Arquitetura em camadas
 
