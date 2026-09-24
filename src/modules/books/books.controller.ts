@@ -5,29 +5,29 @@ import { CreateBookDto, UpdateBookDto } from "./books.dto";
 export class BooksController {
   constructor(private readonly booksService: BooksService) {}
 
-  create = (req: Request, res: Response): void => {
+  create = async (req: Request, res: Response): Promise<void> => {
     const dto = req.body as CreateBookDto;
-    const book = this.booksService.create(dto);
+    const book = await this.booksService.create(dto);
     res.status(201).json(book);
   };
 
-  list = (_req: Request, res: Response): void => {
-    res.status(200).json(this.booksService.findAll());
+  list = async (_req: Request, res: Response): Promise<void> => {
+    res.status(200).json(await this.booksService.findAll());
   };
 
-  getById = (req: Request, res: Response): void => {
-    const book = this.booksService.findById(req.params.id);
+  getById = async (req: Request, res: Response): Promise<void> => {
+    const book = await this.booksService.findById(req.params.id);
     res.status(200).json(book);
   };
 
-  update = (req: Request, res: Response): void => {
+  update = async (req: Request, res: Response): Promise<void> => {
     const dto = req.body as UpdateBookDto;
-    const book = this.booksService.update(req.params.id, dto);
+    const book = await this.booksService.update(req.params.id, dto);
     res.status(200).json(book);
   };
 
-  delete = (req: Request, res: Response): void => {
-    this.booksService.delete(req.params.id);
+  delete = async (req: Request, res: Response): Promise<void> => {
+    await this.booksService.delete(req.params.id);
     res.status(204).send();
   };
 }

@@ -13,24 +13,24 @@ function requireUser(req: Request) {
 export class LoansController {
   constructor(private readonly loansService: LoansService) {}
 
-  create = (req: Request, res: Response): void => {
+  create = async (req: Request, res: Response): Promise<void> => {
     const dto = req.body as CreateLoanDto;
-    const loan = this.loansService.create(dto, requireUser(req));
+    const loan = await this.loansService.create(dto, requireUser(req));
     res.status(201).json(loan);
   };
 
-  list = (req: Request, res: Response): void => {
-    const loans = this.loansService.findAllForRequester(requireUser(req));
+  list = async (req: Request, res: Response): Promise<void> => {
+    const loans = await this.loansService.findAllForRequester(requireUser(req));
     res.status(200).json(loans);
   };
 
-  getById = (req: Request, res: Response): void => {
-    const loan = this.loansService.findByIdForRequester(req.params.id, requireUser(req));
+  getById = async (req: Request, res: Response): Promise<void> => {
+    const loan = await this.loansService.findByIdForRequester(req.params.id, requireUser(req));
     res.status(200).json(loan);
   };
 
-  returnLoan = (req: Request, res: Response): void => {
-    const loan = this.loansService.returnLoan(req.params.id, requireUser(req));
+  returnLoan = async (req: Request, res: Response): Promise<void> => {
+    const loan = await this.loansService.returnLoan(req.params.id, requireUser(req));
     res.status(200).json(loan);
   };
 }

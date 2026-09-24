@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { objectIdSchema } from "../../utils/object-id.dto";
 
 export const createBookSchema = z.object({
   body: z.object({
@@ -23,7 +24,7 @@ export const updateBookSchema = z.object({
       message: "Informe ao menos um campo para atualizar",
     }),
   params: z.object({
-    id: z.string().uuid("ID invalido"),
+    id: objectIdSchema(),
   }),
   query: z.object({}).optional(),
 });
@@ -31,7 +32,7 @@ export const updateBookSchema = z.object({
 export const bookIdParamSchema = z.object({
   body: z.object({}).optional(),
   params: z.object({
-    id: z.string().uuid("ID invalido"),
+    id: objectIdSchema(),
   }),
   query: z.object({}).optional(),
 });

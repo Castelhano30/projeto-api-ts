@@ -1,23 +1,47 @@
-import { randomUUID } from "crypto";
-import { store } from "../../repositories/in-memory-store";
+import { UserModel } from "./users.schema";
 import { User } from "./users.types";
+import { findOrUndefined } from "../../utils/mongo-errors";
+
+function toUser(doc: { _id: unknown; nome: string; email: string; senhaHash: string; papel: User["papel"] }): User {
+  return {
+    id: String(doc._id),
+    nome: doc.nome,
+    email: doc.email,
+    senhaHash: doc.senhaHash,
+    papel: doc.papel,
+  };
+}
 
 export class UsersRepository {
-  create(data: Omit<User, "id">): User {
-    const user: User = { id: randomUUID(), ...data };
-    store.users.set(user.id, user);
-    return user;
+  async create(data: Omit<User, "id">): Promise<User> {
+    const user = await UserModel.create(data);
+    return toUser(user);
   }
 
-  findById(id: string): User | undefined {
-    return store.users.get(id);
+  async findById(id: string): Promise<User | undefined> {
+    const user = await findOrUndefined(UserModel.findById(id));
+    return user ? toUser(user) : undefined;
   }
 
-  findByEmail(email: string): User | undefined {
-    return [...store.users.values()].find((u) => u.email === email);
+  async findByEmail(email: string): Promise<User | undefined> {
+    const user = await UserModel.findOne({ email });
+    return user ? toUser(user) : undefined;
   }
 
-  findAll(): User[] {
-    return [...store.users.values()];
+  async findAll(): Promise<User[]> {
+    const users = await UserModel.find();
+    return users.map(toUser);
+  }
+
+  async update(id: string, data: Partial<Omit<User, "id">>): Promise<User | undefined> {
+    const user = await findOrUndefined(
+      UserModel.findByIdAndUpdate(id, data, { returnDocument: "after" })
+    );
+    return user ? toUser(user) : undefined;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const result = await findOrUndefined(UserModel.findByIdAndDelete(id));
+    return result !== undefined;
   }
 }

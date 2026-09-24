@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { LoansRepository } from "./loans.repository";
 import { BooksService } from "../books/books.service";
 import { CreateLoanDto } from "./loans.dto";
@@ -11,40 +12,51 @@ export class LoansService {
     private readonly booksService: BooksService
   ) {}
 
-  create(dto: CreateLoanDto, requester: AuthenticatedUser): Loan {
-    const book = this.booksService.findById(dto.livroId);
+  async create(dto: CreateLoanDto, requester: AuthenticatedUser): Promise<Loan> {
+    const book = await this.booksService.findById(dto.livroId);
 
     if (book.quantidadeDisponivel <= 0) {
       throw new ConflictError("Nao ha exemplares disponiveis para este livro");
     }
 
-    this.booksService.decrementAvailability(book.id);
-
     const agora = new Date();
     const dataPrevista = new Date(agora);
     dataPrevista.setDate(dataPrevista.getDate() + dto.diasParaDevolucao);
 
-    return this.loansRepository.create({
-      livroId: book.id,
-      usuarioId: requester.id,
-      dataEmprestimo: agora.toISOString(),
-      dataPrevistaDevolucao: dataPrevista.toISOString(),
-      dataDevolucao: null,
-      status: "ATIVO",
-    });
+    const session = await mongoose.startSession();
+    try {
+      let loan: Loan | undefined;
+      await session.withTransaction(async () => {
+        await this.booksService.decrementAvailability(book.id, session);
+        loan = await this.loansRepository.create(
+          {
+            livroId: book.id,
+            usuarioId: requester.id,
+            dataEmprestimo: agora.toISOString(),
+            dataPrevistaDevolucao: dataPrevista.toISOString(),
+            dataDevolucao: null,
+            status: "ATIVO",
+          },
+          session
+        );
+      });
+      return loan as Loan;
+    } finally {
+      await session.endSession();
+    }
   }
 
-  findAllForRequester(requester: AuthenticatedUser): Loan[] {
+  async findAllForRequester(requester: AuthenticatedUser): Promise<Loan[]> {
     const loans =
       requester.role === "ADMIN"
-        ? this.loansRepository.findAll()
-        : this.loansRepository.findByUserId(requester.id);
+        ? await this.loansRepository.findAll()
+        : await this.loansRepository.findByUserId(requester.id);
 
-    return loans.map((loan) => this.refreshStatus(loan));
+    return Promise.all(loans.map((loan) => this.refreshStatus(loan)));
   }
 
-  findByIdForRequester(id: string, requester: AuthenticatedUser): Loan {
-    const loan = this.loansRepository.findById(id);
+  async findByIdForRequester(id: string, requester: AuthenticatedUser): Promise<Loan> {
+    const loan = await this.loansRepository.findById(id);
     if (!loan) {
       throw new NotFoundError("Emprestimo nao encontrado");
     }
@@ -56,26 +68,33 @@ export class LoansService {
     return this.refreshStatus(loan);
   }
 
-  returnLoan(id: string, requester: AuthenticatedUser): Loan {
-    const loan = this.findByIdForRequester(id, requester);
+  async returnLoan(id: string, requester: AuthenticatedUser): Promise<Loan> {
+    const loan = await this.findByIdForRequester(id, requester);
 
     if (loan.status === "DEVOLVIDO") {
       throw new ConflictError("Este emprestimo ja foi devolvido");
     }
 
-    this.booksService.incrementAvailability(loan.livroId);
-
-    const updated = this.loansRepository.update(loan.id, {
-      dataDevolucao: new Date().toISOString(),
-      status: "DEVOLVIDO",
-    });
-
-    return updated as Loan;
+    const session = await mongoose.startSession();
+    try {
+      let updated: Loan | undefined;
+      await session.withTransaction(async () => {
+        await this.booksService.incrementAvailability(loan.livroId, session);
+        updated = await this.loansRepository.update(
+          loan.id,
+          { dataDevolucao: new Date().toISOString(), status: "DEVOLVIDO" },
+          session
+        );
+      });
+      return updated as Loan;
+    } finally {
+      await session.endSession();
+    }
   }
 
-  private refreshStatus(loan: Loan): Loan {
+  private async refreshStatus(loan: Loan): Promise<Loan> {
     if (loan.status === "ATIVO" && new Date(loan.dataPrevistaDevolucao) < new Date()) {
-      const updated = this.loansRepository.update(loan.id, { status: "ATRASADO" });
+      const updated = await this.loansRepository.update(loan.id, { status: "ATRASADO" });
       return updated as Loan;
     }
     return loan;

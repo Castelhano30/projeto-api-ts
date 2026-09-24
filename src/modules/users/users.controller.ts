@@ -4,7 +4,7 @@ import { UsersService } from "./users.service";
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  list = (_req: Request, res: Response): void => {
-    res.status(200).json(this.usersService.listAll());
+  list = async (_req: Request, res: Response): Promise<void> => {
+    res.status(200).json(await this.usersService.listAll());
   };
 }
