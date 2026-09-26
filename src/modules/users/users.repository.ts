@@ -12,9 +12,13 @@ function toUser(doc: { _id: unknown; nome: string; email: string; senhaHash: str
   };
 }
 
+function normalizeEmail(email: string): string {
+  return email.toLowerCase();
+}
+
 export class UsersRepository {
   async create(data: Omit<User, "id">): Promise<User> {
-    const user = await UserModel.create(data);
+    const user = await UserModel.create({ ...data, email: normalizeEmail(data.email) });
     return toUser(user);
   }
 
@@ -24,7 +28,7 @@ export class UsersRepository {
   }
 
   async findByEmail(email: string): Promise<User | undefined> {
-    const user = await UserModel.findOne({ email });
+    const user = await UserModel.findOne({ email: normalizeEmail(email) });
     return user ? toUser(user) : undefined;
   }
 
@@ -34,8 +38,9 @@ export class UsersRepository {
   }
 
   async update(id: string, data: Partial<Omit<User, "id">>): Promise<User | undefined> {
+    const normalizedData = data.email ? { ...data, email: normalizeEmail(data.email) } : data;
     const user = await findOrUndefined(
-      UserModel.findByIdAndUpdate(id, data, { returnDocument: "after" })
+      UserModel.findByIdAndUpdate(id, normalizedData, { returnDocument: "after" })
     );
     return user ? toUser(user) : undefined;
   }
