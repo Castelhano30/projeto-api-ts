@@ -2,29 +2,7 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app";
 import { useMongoMemoryReplSet } from "./support/mongo-memory";
-
-async function registerAndLogin(
-  app: ReturnType<typeof createApp>,
-  papel: "ADMIN" | "MEMBER",
-  overrides: Partial<{ nome: string; email: string; senha: string }> = {}
-): Promise<{ token: string; id: string; email: string }> {
-  const email = overrides.email ?? `${papel.toLowerCase()}-${Date.now()}-${Math.random()}@example.com`;
-  const registerResponse = await request(app)
-    .post("/auth/register")
-    .send({
-      nome: overrides.nome ?? `Usuario ${papel}`,
-      email,
-      senha: overrides.senha ?? "senha123",
-      papel,
-    });
-
-  const loginResponse = await request(app).post("/auth/login").send({
-    email,
-    senha: overrides.senha ?? "senha123",
-  });
-
-  return { token: loginResponse.body.token as string, id: registerResponse.body.id as string, email };
-}
+import { registerAndLogin } from "./support/auth-fixtures";
 
 describe("Users", () => {
   useMongoMemoryReplSet();
