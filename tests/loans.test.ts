@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app";
+import { useMongoMemoryReplSet } from "./support/mongo-memory";
 
 async function registerAndLogin(
   app: ReturnType<typeof createApp>,
@@ -23,6 +24,7 @@ async function registerAndLogin(
 }
 
 describe("Loans", () => {
+  useMongoMemoryReplSet();
   const app = createApp();
 
   it("cria um emprestimo com sucesso e decrementa a disponibilidade (fluxo feliz)", async () => {

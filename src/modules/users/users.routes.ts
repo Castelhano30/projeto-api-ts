@@ -83,20 +83,20 @@ export function buildUsersRoutes(usersController: UsersController): Router {
    */
   router.put(
     "/:id",
-    validate(updateUserSchema),
     selfOrRoleMiddleware("ADMIN"),
+    validate(updateUserSchema),
     asyncHandler(usersController.update)
   );
   router.patch(
     "/:id",
-    validate(updateUserSchema),
     selfOrRoleMiddleware("ADMIN"),
+    validate(updateUserSchema),
     asyncHandler(usersController.update)
   );
   router.delete(
     "/:id",
-    validate(userIdParamSchema),
     selfOrRoleMiddleware("ADMIN"),
+    validate(userIdParamSchema),
     asyncHandler(usersController.delete)
   );
 
