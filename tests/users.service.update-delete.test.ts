@@ -6,7 +6,10 @@ import { UsersRepository } from "../src/modules/users/users.repository";
 import { UsersService } from "../src/modules/users/users.service";
 import { UserModel } from "../src/modules/users/users.schema";
 import { LoansRepository } from "../src/modules/loans/loans.repository";
+import { LoansService } from "../src/modules/loans/loans.service";
 import { LoanModel } from "../src/modules/loans/loans.schema";
+import { BooksRepository } from "../src/modules/books/books.repository";
+import { BooksService } from "../src/modules/books/books.service";
 import { AuthenticatedUser } from "../src/middlewares/auth.middleware";
 import { AppError, ConflictError, NotFoundError } from "../src/utils/app-error";
 
@@ -14,7 +17,9 @@ describe("UsersService.updateUser / deleteUser", () => {
   let mongod: MongoMemoryServer;
   const repository = new UsersRepository();
   const loansRepository = new LoansRepository();
-  const service = new UsersService(repository, loansRepository);
+  const booksService = new BooksService(new BooksRepository());
+  const loansService = new LoansService(loansRepository, booksService);
+  const service = new UsersService(repository, loansService);
 
   beforeAll(async () => {
     mongod = await MongoMemoryServer.create();

@@ -5,7 +5,7 @@ import { PublicUser, User } from "./users.types";
 import { AppError, ConflictError, NotFoundError } from "../../utils/app-error";
 import { isDuplicateKeyError } from "../../utils/mongo-errors";
 import { AuthenticatedUser } from "../../middlewares/auth.middleware";
-import { LoansRepository } from "../loans/loans.repository";
+import { LoansService } from "../loans/loans.service";
 
 const SALT_ROUNDS = 10;
 
@@ -17,7 +17,7 @@ function toPublicUser(user: User): PublicUser {
 export class UsersService {
   constructor(
     private readonly usersRepository: UsersRepository,
-    private readonly loansRepository: LoansRepository
+    private readonly loansService: LoansService
   ) {}
 
   async createUser(dto: CreateUserDto): Promise<PublicUser> {
@@ -101,8 +101,7 @@ export class UsersService {
       throw new NotFoundError("Usuario nao encontrado");
     }
 
-    const loans = await this.loansRepository.findByUserId(id);
-    const hasActiveLoan = loans.some((loan) => loan.status === "ATIVO" || loan.status === "ATRASADO");
+    const hasActiveLoan = await this.loansService.hasActiveLoanForUser(id);
     if (hasActiveLoan) {
       throw new ConflictError("Usuario possui emprestimo ativo e nao pode ser excluido");
     }

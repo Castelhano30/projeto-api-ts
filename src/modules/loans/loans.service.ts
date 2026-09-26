@@ -23,8 +23,9 @@ export class LoansService {
     const dataPrevista = new Date(agora);
     dataPrevista.setDate(dataPrevista.getDate() + dto.diasParaDevolucao);
 
-    const session = await mongoose.startSession();
+    let session: mongoose.ClientSession | undefined;
     try {
+      session = await mongoose.startSession();
       let loan: Loan | undefined;
       await session.withTransaction(async () => {
         await this.booksService.decrementAvailability(book.id, session);
@@ -42,7 +43,7 @@ export class LoansService {
       });
       return loan as Loan;
     } finally {
-      await session.endSession();
+      await session?.endSession();
     }
   }
 
@@ -75,8 +76,9 @@ export class LoansService {
       throw new ConflictError("Este emprestimo ja foi devolvido");
     }
 
-    const session = await mongoose.startSession();
+    let session: mongoose.ClientSession | undefined;
     try {
+      session = await mongoose.startSession();
       let updated: Loan | undefined;
       await session.withTransaction(async () => {
         await this.booksService.incrementAvailability(loan.livroId, session);
@@ -88,14 +90,19 @@ export class LoansService {
       });
       return updated as Loan;
     } finally {
-      await session.endSession();
+      await session?.endSession();
     }
+  }
+
+  async hasActiveLoanForUser(userId: string): Promise<boolean> {
+    const loans = await this.loansRepository.findByUserId(userId);
+    return loans.some((loan) => loan.status === "ATIVO" || loan.status === "ATRASADO");
   }
 
   private async refreshStatus(loan: Loan): Promise<Loan> {
     if (loan.status === "ATIVO" && new Date(loan.dataPrevistaDevolucao) < new Date()) {
       const updated = await this.loansRepository.update(loan.id, { status: "ATRASADO" });
-      return updated as Loan;
+      return updated ?? loan;
     }
     return loan;
   }

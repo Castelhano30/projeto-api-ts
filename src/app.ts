@@ -31,19 +31,20 @@ export function createApp(): Express {
 
   // Dependency injection manual: repository -> service -> controller
   const usersRepository = new UsersRepository();
-  const loansRepository = new LoansRepository();
-  const usersService = new UsersService(usersRepository, loansRepository);
-  const usersController = new UsersController(usersService);
-
-  const authService = new AuthService(usersService);
-  const authController = new AuthController(authService);
 
   const booksRepository = new BooksRepository();
   const booksService = new BooksService(booksRepository);
   const booksController = new BooksController(booksService);
 
+  const loansRepository = new LoansRepository();
   const loansService = new LoansService(loansRepository, booksService);
   const loansController = new LoansController(loansService);
+
+  const usersService = new UsersService(usersRepository, loansService);
+  const usersController = new UsersController(usersService);
+
+  const authService = new AuthService(usersService);
+  const authController = new AuthController(authService);
 
   app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
