@@ -4,6 +4,7 @@ import { authMiddleware } from "../../middlewares/auth.middleware";
 import { roleMiddleware } from "../../middlewares/role.middleware";
 import { validate } from "../../middlewares/validate.middleware";
 import { bookIdParamSchema, createBookSchema, updateBookSchema } from "./books.dto";
+import { asyncHandler } from "../../utils/async-handler";
 
 export function buildBooksRoutes(booksController: BooksController): Router {
   const router = Router();
@@ -44,8 +45,13 @@ export function buildBooksRoutes(booksController: BooksController): Router {
    *       200:
    *         description: Lista de livros
    */
-  router.post("/", roleMiddleware("ADMIN"), validate(createBookSchema), booksController.create);
-  router.get("/", booksController.list);
+  router.post(
+    "/",
+    roleMiddleware("ADMIN"),
+    validate(createBookSchema),
+    asyncHandler(booksController.create)
+  );
+  router.get("/", asyncHandler(booksController.list));
 
   /**
    * @openapi
@@ -96,18 +102,18 @@ export function buildBooksRoutes(booksController: BooksController): Router {
    *       403:
    *         description: Acesso negado
    */
-  router.get("/:id", validate(bookIdParamSchema), booksController.getById);
+  router.get("/:id", validate(bookIdParamSchema), asyncHandler(booksController.getById));
   router.put(
     "/:id",
     roleMiddleware("ADMIN"),
     validate(updateBookSchema),
-    booksController.update
+    asyncHandler(booksController.update)
   );
   router.delete(
     "/:id",
     roleMiddleware("ADMIN"),
     validate(bookIdParamSchema),
-    booksController.delete
+    asyncHandler(booksController.delete)
   );
 
   return router;

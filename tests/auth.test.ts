@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app";
+import { useMongoMemoryReplSet } from "./support/mongo-memory";
 
 describe("Auth", () => {
+  useMongoMemoryReplSet();
   const app = createApp();
 
   it("registra e autentica um usuario com sucesso (fluxo feliz)", async () => {

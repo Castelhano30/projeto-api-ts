@@ -1,0 +1,45 @@
+services:
+  # MongoDB em replica set de um único nó: necessário para as transações de
+  # POST /loans e PATCH /loans/:id/return (session.withTransaction).
+  mongo:
+    image: mongo:7
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    # Exposta apenas em 127.0.0.1 (sem autenticação, não deve ficar aberta na rede) para
+    # acesso com Compass/mongosh e para rodar a API fora do Docker. A URI externa precisa
+    # de directConnection=true (ex.: mongodb://localhost:27017/biblioteca?directConnection=true).
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # Inicializa o replica set na primeira execução (idempotente) e só fica
+      # healthy quando o nó já é PRIMARY.
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - |
+          try { rs.status() } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }) }
+          quit(db.hello().isWritablePrimary ? 0 : 1)
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+
+  api:
+    build: .
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3000}:3000"   # porta do host configurável via .env; no container é sempre 3000
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/biblioteca?replicaSet=rs0
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      NODE_ENV: production
+
+volumes:
+  mongo-data:

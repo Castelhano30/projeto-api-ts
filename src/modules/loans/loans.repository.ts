@@ -1,31 +1,64 @@
-import { randomUUID } from "crypto";
-import { store } from "../../repositories/in-memory-store";
+import mongoose, { ClientSession } from "mongoose";
+import { LoanModel } from "./loans.schema";
 import { Loan } from "./loans.types";
+import { findOrUndefined } from "../../utils/mongo-errors";
+
+function toLoan(doc: {
+  _id: unknown;
+  livroId: unknown;
+  usuarioId: unknown;
+  dataEmprestimo: string;
+  dataPrevistaDevolucao: string;
+  dataDevolucao: string | null;
+  status: Loan["status"];
+}): Loan {
+  return {
+    id: String(doc._id),
+    livroId: String(doc.livroId),
+    usuarioId: String(doc.usuarioId),
+    dataEmprestimo: doc.dataEmprestimo,
+    dataPrevistaDevolucao: doc.dataPrevistaDevolucao,
+    dataDevolucao: doc.dataDevolucao,
+    status: doc.status,
+  };
+}
 
 export class LoansRepository {
-  create(data: Omit<Loan, "id">): Loan {
-    const loan: Loan = { id: randomUUID(), ...data };
-    store.loans.set(loan.id, loan);
-    return loan;
+  async create(data: Omit<Loan, "id">, session?: ClientSession): Promise<Loan> {
+    const [loan] = await LoanModel.create([data], { session });
+    return toLoan(loan);
   }
 
-  findById(id: string): Loan | undefined {
-    return store.loans.get(id);
+  async findById(id: string): Promise<Loan | undefined> {
+    const loan = await findOrUndefined(LoanModel.findById(id));
+    return loan ? toLoan(loan) : undefined;
   }
 
-  findAll(): Loan[] {
-    return [...store.loans.values()];
+  async findAll(): Promise<Loan[]> {
+    const loans = await LoanModel.find();
+    return loans.map(toLoan);
   }
 
-  findByUserId(userId: string): Loan[] {
-    return [...store.loans.values()].filter((l) => l.usuarioId === userId);
+  async findByUserId(userId: string): Promise<Loan[]> {
+    try {
+      const loans = await LoanModel.find({ usuarioId: userId });
+      return loans.map(toLoan);
+    } catch (error) {
+      if (error instanceof mongoose.Error.CastError) {
+        return [];
+      }
+      throw error;
+    }
   }
 
-  update(id: string, data: Partial<Omit<Loan, "id">>): Loan | undefined {
-    const existing = store.loans.get(id);
-    if (!existing) return undefined;
-    const updated: Loan = { ...existing, ...data };
-    store.loans.set(id, updated);
-    return updated;
+  async update(
+    id: string,
+    data: Partial<Omit<Loan, "id">>,
+    session?: ClientSession
+  ): Promise<Loan | undefined> {
+    const loan = await findOrUndefined(
+      LoanModel.findByIdAndUpdate(id, data, { returnDocument: "after", session })
+    );
+    return loan ? toLoan(loan) : undefined;
   }
 }

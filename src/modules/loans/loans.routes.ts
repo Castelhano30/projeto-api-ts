@@ -3,6 +3,7 @@ import { LoansController } from "./loans.controller";
 import { authMiddleware } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate.middleware";
 import { createLoanSchema, loanIdParamSchema } from "./loans.dto";
+import { asyncHandler } from "../../utils/async-handler";
 
 export function buildLoansRoutes(loansController: LoansController): Router {
   const router = Router();
@@ -41,8 +42,8 @@ export function buildLoansRoutes(loansController: LoansController): Router {
    *       200:
    *         description: Lista de emprestimos
    */
-  router.post("/", validate(createLoanSchema), loansController.create);
-  router.get("/", loansController.list);
+  router.post("/", validate(createLoanSchema), asyncHandler(loansController.create));
+  router.get("/", asyncHandler(loansController.list));
 
   /**
    * @openapi
@@ -63,7 +64,7 @@ export function buildLoansRoutes(loansController: LoansController): Router {
    *       404:
    *         description: Emprestimo nao encontrado
    */
-  router.get("/:id", validate(loanIdParamSchema), loansController.getById);
+  router.get("/:id", validate(loanIdParamSchema), asyncHandler(loansController.getById));
 
   /**
    * @openapi
@@ -84,7 +85,11 @@ export function buildLoansRoutes(loansController: LoansController): Router {
    *       409:
    *         description: Emprestimo ja devolvido
    */
-  router.patch("/:id/return", validate(loanIdParamSchema), loansController.returnLoan);
+  router.patch(
+    "/:id/return",
+    validate(loanIdParamSchema),
+    asyncHandler(loansController.returnLoan)
+  );
 
   return router;
 }

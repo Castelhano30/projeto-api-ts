@@ -1,33 +1,16 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app";
-
-async function registerAndLogin(
-  app: ReturnType<typeof createApp>,
-  papel: "ADMIN" | "MEMBER"
-): Promise<string> {
-  const email = `${papel.toLowerCase()}-${Date.now()}-${Math.random()}@example.com`;
-  await request(app).post("/auth/register").send({
-    nome: `Usuario ${papel}`,
-    email,
-    senha: "senha123",
-    papel,
-  });
-
-  const loginResponse = await request(app).post("/auth/login").send({
-    email,
-    senha: "senha123",
-  });
-
-  return loginResponse.body.token as string;
-}
+import { useMongoMemoryReplSet } from "./support/mongo-memory";
+import { registerAndLogin } from "./support/auth-fixtures";
 
 describe("Loans", () => {
+  useMongoMemoryReplSet();
   const app = createApp();
 
   it("cria um emprestimo com sucesso e decrementa a disponibilidade (fluxo feliz)", async () => {
-    const adminToken = await registerAndLogin(app, "ADMIN");
-    const memberToken = await registerAndLogin(app, "MEMBER");
+    const { token: adminToken } = await registerAndLogin(app, "ADMIN");
+    const { token: memberToken } = await registerAndLogin(app, "MEMBER");
 
     const bookResponse = await request(app)
       .post("/books")
@@ -57,8 +40,8 @@ describe("Loans", () => {
   });
 
   it("retorna 409 ao tentar emprestar livro sem exemplares disponiveis (fluxo de erro)", async () => {
-    const adminToken = await registerAndLogin(app, "ADMIN");
-    const memberToken = await registerAndLogin(app, "MEMBER");
+    const { token: adminToken } = await registerAndLogin(app, "ADMIN");
+    const { token: memberToken } = await registerAndLogin(app, "MEMBER");
 
     const bookResponse = await request(app)
       .post("/books")
