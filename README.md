@@ -4,19 +4,113 @@ API REST em TypeScript para gestão de uma biblioteca de livros: usuários, livr
 empréstimos, com autenticação JWT, autorização por papel, validação de DTOs com Zod,
 persistência em MongoDB (via Mongoose) e documentação OpenAPI/Swagger.
 
-## Como rodar o projeto
+## Sumário
 
-Pré-requisitos: Node.js 18+ e uma instância MongoDB acessível (Atlas ou local).
+1. [Como rodar o projeto](#como-rodar-o-projeto) — com Docker (recomendado) ou sem Docker
+2. [Conexão com o MongoDB](#conexão-com-o-mongodb)
+3. [Arquitetura em camadas](#arquitetura-em-camadas)
+4. [Autenticação e Autorização](#autenticação-e-autorização) e [Endpoints disponíveis](#endpoints-disponíveis)
+5. [Documentação da API (Swagger)](#documentação-da-api-swagger)
+6. [Roteiro de teste](#roteiro-de-teste)
+7. [Testes automatizados](#testes)
+
+> **Início rápido:** com o Docker Desktop aberto, rode `docker compose up --build`, acesse
+> `http://localhost:3000/docs` e siga o [roteiro de teste](docs/ROTEIRO_DE_TESTE.md).
+
+## Como rodar o projeto
 
 > **Importante:** a criação e a devolução de empréstimos (`POST /loans` e
 > `PATCH /loans/:id/return`) usam transações do MongoDB (`session.withTransaction`),
-> que exigem um **replica set** — um Atlas gratuito já atende, mas um `mongod`
-> standalone local (ex.: `docker run mongo` sem `--replSet`) não funciona para essas
-> rotas. Os testes usam `MongoMemoryReplSet` por esse motivo (ver
-> [tests/support/mongo-memory.ts](tests/support/mongo-memory.ts)).
+> que exigem um **replica set**. Um `mongod` standalone não funciona para essas
+> rotas (veja [Conexão com o MongoDB](#conexão-com-o-mongodb)). O `docker-compose.yml`
+> já sobe o Mongo como replica set de um nó, e os testes usam `MongoMemoryReplSet`
+> (ver [tests/support/mongo-memory.ts](tests/support/mongo-memory.ts)).
+
+### Rodar com Docker (recomendado)
+
+Pré-requisitos: Docker Desktop (ou Docker Engine + Compose v2, comando `docker compose`)
+em execução. Não é necessário ter Node.js nem MongoDB instalados. A primeira execução
+baixa as imagens `node:20-slim` e `mongo:7` e compila o projeto; as seguintes são rápidas.
+
+Arquivos Docker do repositório:
+
+| Arquivo | Função |
+|---------|--------|
+| [Dockerfile](Dockerfile) | Build em dois estágios: compila o TypeScript (`npm run build`) e gera uma imagem final enxuta, só com dependências de produção e `dist/` |
+| [docker-compose.yml](docker-compose.yml) | Sobe o `mongo` (replica set de um nó, com healthcheck) e a `api`, que só inicia depois de o Mongo estar saudável |
+| [.dockerignore](.dockerignore) | Mantém `node_modules`, `.env`, testes etc. fora da imagem |
+
+```bash
+# Bash
+cp .env.example .env
+docker compose up --build
+```
+
+```powershell
+# PowerShell
+Copy-Item .env.example .env
+docker compose up --build
+```
+
+O `.env` é opcional para o Docker (sem ele o compose usa padrões de desenvolvimento), mas
+permite trocar `JWT_SECRET`, `JWT_EXPIRES_IN` e a porta do host (`PORT`). Dentro do
+container a API sempre escuta na 3000 e roda com `NODE_ENV=production`; a `MONGODB_URI`
+é definida no próprio `docker-compose.yml` (aponta para o serviço `mongo`). Ou seja, esses
+três valores do `.env` não afetam a API dentro do Docker. Sem `.env`, o `JWT_SECRET` é o
+padrão público `dev-secret-change-me` — aceitável para avaliar localmente, não para produção.
+
+Como verificar que subiu:
+
+```bash
+docker compose ps                      # mongo deve estar "healthy" e api "running"
+curl -I http://localhost:3000/docs/    # HTTP 200 OK
+```
+
+```powershell
+docker compose ps
+Invoke-WebRequest http://localhost:3000/docs/ -UseBasicParsing | Select-Object StatusCode
+```
+
+Ou abra `http://localhost:3000/docs` no navegador. Para acompanhar os logs:
+`docker compose logs -f api`.
+
+> **Erros comuns na subida:** `failed to connect to the docker API` significa que o Docker
+> Desktop não está aberto; `port is already allocated` significa que a porta 3000 (ou a
+> 27017 do Mongo) está ocupada — pare a outra aplicação ou defina `PORT=3001` no `.env`.
+
+Para parar e para zerar os dados:
+
+```bash
+docker compose down        # para e remove os containers (dados do Mongo preservados)
+docker compose down -v     # também apaga o volume nomeado: banco zerado
+```
+
+> A porta `27017` do Mongo é exposta **somente em `127.0.0.1`** (o banco não tem senha, então
+> não fica aberto na rede), para acesso com Compass/mongosh ou para rodar a API fora do Docker.
+> Nesse caso a URI externa precisa de `directConnection=true`, por exemplo
+> `mongodb://localhost:27017/biblioteca?directConnection=true`.
+
+### Rodar sem Docker
+
+Pré-requisitos: Node.js 18+ (a imagem Docker usa Node 20) e um MongoDB **replica set** acessível. Duas opções:
+
+1. **MongoDB Atlas** (já é replica set): defina `MONGODB_URI` com a URI `mongodb+srv://...`.
+2. **Somente o Mongo do compose** (requer Docker):
+
+   ```bash
+   docker compose up -d mongo
+   ```
+
+   e use no `.env` a URI padrão do `.env.example`:
+   `mongodb://localhost:27017/biblioteca?replicaSet=rs0&directConnection=true`.
+   Aguarde o Mongo ficar `healthy` (`docker compose ps`) antes de iniciar a API.
+
+> Não rode `docker compose up` (que inclui a `api`) junto com `npm run dev`: os dois
+> disputam a porta 3000. Para desenvolver localmente, suba apenas o `mongo`.
 
 ```bash
 npm install
+cp .env.example .env   # PowerShell: Copy-Item .env.example .env
 
 # ambiente de desenvolvimento (hot reload)
 npm run dev
@@ -28,7 +122,7 @@ npm run typecheck
 npm run build
 npm start
 
-# testes
+# testes (não dependem de Docker)
 npm test
 ```
 
@@ -42,7 +136,31 @@ Variáveis de ambiente (`.env` ou variáveis de sistema):
 | `PORT`            | `3000`                     | Porta HTTP                          |
 | `JWT_SECRET`      | `dev-secret-change-me`     | Segredo usado para assinar o JWT    |
 | `JWT_EXPIRES_IN`  | `1h`                       | Tempo de expiração do token         |
-| `MONGODB_URI`     | *(obrigatória, sem padrão)* | String de conexão do MongoDB (Atlas ou local, precisa ser um replica set — veja aviso acima). Sem ela, a aplicação não inicia. Ex.: `mongodb+srv://user:senha@cluster.mongodb.net/biblioteca` |
+| `NODE_ENV`        | `development`              | Ambiente de execução                |
+| `MONGODB_URI`     | *(obrigatória, sem padrão)* | String de conexão do MongoDB (precisa ser um replica set). Sem ela, a aplicação não inicia. Veja a próxima seção. |
+
+## Conexão com o MongoDB
+
+A API lê a string de conexão da variável `MONGODB_URI` (obrigatória). Exemplos:
+
+| Cenário | `MONGODB_URI` |
+|---------|----------------|
+| API e Mongo no compose (definida automaticamente) | `mongodb://mongo:27017/biblioteca?replicaSet=rs0` |
+| API no host, Mongo do compose | `mongodb://localhost:27017/biblioteca?replicaSet=rs0&directConnection=true` |
+| MongoDB Atlas | `mongodb+srv://usuario:senha@cluster.mongodb.net/biblioteca` |
+
+**Por que replica set?** `POST /loans` e `PATCH /loans/:id/return` alteram o empréstimo
+e a disponibilidade do livro dentro de uma transação, e o MongoDB só suporta transações
+em replica set (ou cluster sharded). O `docker-compose.yml` inicializa um replica set
+`rs0` de um único nó automaticamente (via healthcheck).
+
+**Sintoma de usar standalone:** o cadastro, o login e o CRUD de livros/usuários funcionam,
+mas `POST /loans` e `PATCH /loans/:id/return` falham com `500` (erro do MongoDB *"Transaction
+numbers are only allowed on a replica set member or mongos"* nos logs).
+
+**`directConnection=true`:** o replica set do compose anuncia o host `mongo:27017`, que
+só resolve dentro da rede do Docker. Ao conectar do host (API local, Compass), use
+`directConnection=true` para não tentar descobrir esse endereço.
 
 ## Arquitetura em camadas
 
@@ -89,6 +207,8 @@ src/
   app.ts               # composição da aplicação (DI manual + rotas)
   server.ts            # bootstrap HTTP (conecta ao MongoDB antes de subir o servidor)
 tests/                 # testes de integração (Vitest + Supertest + mongodb-memory-server)
+docs/                  # roteiro de teste manual (ROTEIRO_DE_TESTE.md)
+Dockerfile, docker-compose.yml, .dockerignore   # execução com Docker
 ```
 
 ## Autenticação e Autorização
@@ -263,7 +383,38 @@ Com o servidor rodando, acesse `http://localhost:3000/docs` para a UI interativa
 Swagger, gerada a partir das anotações `@openapi` em cada arquivo `*.routes.ts`
 (ver [src/docs/swagger.ts](src/docs/swagger.ts)).
 
+**Como autenticar no Swagger:**
+
+1. Em `POST /auth/login`, clique em *Try it out*, informe e-mail e senha e execute.
+2. Copie o valor do campo `token` da resposta (somente o token).
+3. Clique em **Authorize** (cadeado no topo), cole o token no campo `bearerAuth` e
+   confirme. O esquema é `http`/`bearer`, então a UI adiciona o prefixo `Bearer`
+   sozinha — **não digite** `Bearer` antes do token.
+
+## Roteiro de teste
+
+O roteiro completo, com comandos prontos para copiar e colar em **Bash** e **PowerShell**
+(tokens e IDs já guardados em variáveis), está em
+**[docs/ROTEIRO_DE_TESTE.md](docs/ROTEIRO_DE_TESTE.md)**. Ele foi executado contra o
+container Docker e cobre, na ordem:
+
+| # | Passo | Resultado esperado |
+|---|-------|--------------------|
+| 1–2 | Registrar e fazer login do ADMIN | `201` / `200` com `token` |
+| 3 | Criar livro com 1 exemplar (ADMIN) | `201` |
+| 4–5 | Registrar e fazer login do MEMBER | `201` / `200` com `token` |
+| 6 | Criar empréstimo (usa transação) | `201`, `status: "ATIVO"` |
+| 7 | Listar empréstimos | `200` |
+| 8 | Devolver o livro (usa transação) | `200`, `status: "DEVOLVIDO"` |
+| 9–10 | Emprestar o único exemplar e tentar de novo | `201`, depois `409` (sem exemplares) |
+| 11 | MEMBER tentando criar livro | `403` |
+| 12 | Requisição sem token | `401` |
+
+Alternativa interativa: faça o mesmo pela UI do [Swagger](#documentação-da-api-swagger).
+
 ## Testes
+
+Os testes automatizados **não usam o Docker**: rodam com `npm test` (requer `npm install` antes).
 
 ```bash
 npm test
@@ -275,24 +426,12 @@ replica set — necessário pelas transações de empréstimo; ver
 [tests/support/mongo-memory.ts](tests/support/mongo-memory.ts)), baixado
 automaticamente no primeiro `npm test` (requer acesso à internet nessa primeira vez).
 
-Cobertura (Vitest + Supertest), cada uma com fluxo feliz e fluxo de erro:
+Cobertura (Vitest + Supertest), com fluxo feliz e de erro em cada área:
 
-- [tests/auth.test.ts](tests/auth.test.ts): registro + login com sucesso; login com senha incorreta (`401`).
-- [tests/books.test.ts](tests/books.test.ts): criação de livro por ADMIN; criação de livro por MEMBER (`403`).
-- [tests/books.repository.test.ts](tests/books.repository.test.ts) e
-  [tests/books-availability-race.test.ts](tests/books-availability-race.test.ts): CRUD do
-  repositório e decremento/incremento atômico de disponibilidade sob concorrência.
-- [tests/loans.test.ts](tests/loans.test.ts): criação de empréstimo com decremento de disponibilidade; empréstimo sem exemplares disponíveis (`409`).
-- [tests/loans.repository.test.ts](tests/loans.repository.test.ts) e
-  [tests/loans.service.transaction.test.ts](tests/loans.service.transaction.test.ts): CRUD do
-  repositório e rollback da transação de criação/devolução em caso de falha.
-- [tests/users.test.ts](tests/users.test.ts): listagem (ADMIN), `PUT`/`PATCH`/`DELETE
-  /users/:id` (ADMIN-ou-dono, bloqueio de troca de papel por não-ADMIN, exclusão
-  bloqueada por empréstimo ativo).
-- [tests/users.repository.test.ts](tests/users.repository.test.ts) e
-  [tests/users.service.update-delete.test.ts](tests/users.service.update-delete.test.ts):
-  CRUD do repositório e regras de negócio de atualização/exclusão.
-- [tests/self-or-role.middleware.test.ts](tests/self-or-role.middleware.test.ts): autorização ADMIN-ou-dono.
-- [tests/schemas.test.ts](tests/schemas.test.ts): validação dos schemas Mongoose (obrigatoriedade, unicidade, enums).
-- [tests/database.test.ts](tests/database.test.ts): erro claro quando `MONGODB_URI` está ausente ou a conexão falha.
-
+| Área | Arquivos em [tests/](tests/) | O que verifica |
+|------|------------------------------|----------------|
+| Auth | `auth.test.ts` | registro + login; senha incorreta (`401`) |
+| Livros | `books.test.ts`, `books.repository.test.ts`, `books-availability-race.test.ts` | criação por ADMIN, `403` para MEMBER, CRUD e disponibilidade atômica sob concorrência |
+| Empréstimos | `loans.test.ts`, `loans.repository.test.ts`, `loans.service.transaction.test.ts` | criação/devolução, `409` sem exemplares, rollback da transação |
+| Usuários | `users.test.ts`, `users.repository.test.ts`, `users.service.update-delete.test.ts`, `self-or-role.middleware.test.ts` | `PUT`/`PATCH`/`DELETE` (ADMIN-ou-dono), troca de papel, exclusão bloqueada por empréstimo ativo |
+| Infraestrutura | `schemas.test.ts`, `database.test.ts` | schemas Mongoose e erro claro para `MONGODB_URI` ausente/conexão falha |

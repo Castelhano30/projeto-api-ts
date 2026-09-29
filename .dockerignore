@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.gitignore
+.env
+.claude
+_bmad
+_bmad-output
+tests
+coverage
+*.log
+*.md
+Dockerfile
+docker-compose.yml
+.dockerignore
